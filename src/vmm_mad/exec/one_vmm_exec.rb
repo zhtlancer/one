@@ -928,31 +928,31 @@ class ExecDriver < VirtualMachineDriver
 
         steps = [
             # Save VM state / detach the disk
-            {
-                :driver     => :vmm,
-                :action     => pre_action,
-                :parameters => pre_params
-            },
+#            {
+#                :driver     => :vmm,
+#                :action     => pre_action,
+#                :parameters => pre_params
+#            },
             # Do the snapshot
             {
                 :driver     => :tm,
                 :action     => :tm_snap_create,
                 :parameters => tm_command.split,
                 :no_fail    => true
-            },
-            # Restore VM / attach the disk
-            {
-                :driver     => :vmm,
-                :action     => post_action,
-                :parameters => post_params,
-                :fail_actions => [
-                    {
-                        :driver     => :tm,
-                        :action     => :tm_snap_delete,
-                        :parameters => tm_rollback.split
-                    }
-                ]
-            }
+            }#,
+#            # Restore VM / attach the disk
+#            {
+#                :driver     => :vmm,
+#                :action     => post_action,
+#                :parameters => post_params,
+#                :fail_actions => [
+#                    {
+#                        :driver     => :tm,
+#                        :action     => :tm_snap_delete,
+#                        :parameters => tm_rollback.split
+#                    }
+#                ]
+#            }
         ]
 
         action.run(steps)

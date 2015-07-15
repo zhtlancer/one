@@ -52,10 +52,12 @@ while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
 done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/SOURCE \
-                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE)
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/TARGET)
 
 DISK_SRC="${XPATH_ELEMENTS[j++]}"
 CLONE="${XPATH_ELEMENTS[j++]}"
+TARGET="${XPATH_ELEMENTS[j++]}"
 
 
 SYSTEM_DS_PATH=$(dirname ${SRC_PATH})
@@ -67,6 +69,8 @@ if [ "$CLONE" = "YES" ]; then
 else
     DISK_PATH=$DISK_SRC
 fi
+
+SNAP_ID=$(( $SNAP_ID + 1 ))
 
 SNAP_DIR="${DISK_PATH}.snap"
 SNAP_PATH="${SNAP_DIR}/${SNAP_ID}"
@@ -83,8 +87,12 @@ fi
 # Move save current snapshot and create a new one. The snapshot uses
 # absolute path name as the qemu-img has problems with relative backing
 # file paths and symlinks
-mv "${CURRENT_PATH}" "${SNAP_PATH}"
-qemu-img create -f qcow2 -b "${SNAP_PATH}" "${CURRENT_PATH}"
+#mv "${CURRENT_PATH}" "${SNAP_PATH}"
+#qemu-img create -f qcow2 -b "${SNAP_PATH}" "${CURRENT_PATH}"
+
+virsh -c qemu:///system snapshot-create-as one-$VMID $SNAP_ID "snap $SNAP_ID" --disk-only --diskspec vda,file=$SNAP_PATH --atomic
+
+ln -sf $SNAP_PATH $CURRENT_PATH
 
 # TODO: Check that the new snapshot can be created. Roll back in case
 # of error
@@ -93,14 +101,14 @@ qemu-img create -f qcow2 -b "${SNAP_PATH}" "${CURRENT_PATH}"
 # the system directory. Do not do this for snapshot one as:
 # * It could be a non backed file (persistent)
 # * The backing file is in images directory, is not relative
-if [ "$SNAP_ID" != "0" ]; then
+if [ "$SNAP_ID" = "1" ]; then
     BACKING_FILE=\$(qemu-img info ${SNAP_PATH} | grep '^backing file:' | \
         cut -d: -f2 | sed 's/^ //')
 
     if [ -n "\$BACKING_FILE" ]; then
-        RELATIVE_BACKING_FILE="\$(basename \${BACKING_FILE})"
+        REAL_BACKING_FILE="\${BACKING_FILE}.orig"
 
-        qemu-img rebase -u -b "\${RELATIVE_BACKING_FILE}" "${SNAP_PATH}"
+        qemu-img rebase -u -b "\${REAL_BACKING_FILE}" "${SNAP_PATH}"
     fi
 fi
 EOT
