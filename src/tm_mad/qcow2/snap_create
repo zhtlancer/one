@@ -53,11 +53,21 @@ while IFS= read -r -d '' element; do
 done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/SOURCE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE \
-                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/TARGET)
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/TARGET \
+                    "/VM/SNAPSHOTS[DISK_ID=$DISK_ID]/SNAPSHOT[last()]/ID" \
+                    /VM/HISTORY_RECORDS/HISTORY/VMMMAD \
+                    /VM/STATE)
 
 DISK_SRC="${XPATH_ELEMENTS[j++]}"
 CLONE="${XPATH_ELEMENTS[j++]}"
 TARGET="${XPATH_ELEMENTS[j++]}"
+LAST_SNAP_ID="${XPATH_ELEMENTS[j++]}"
+LAST_SNAP_ID="${XPATH_ELEMENTS[j++]}"
+STATE="${XPATH_ELEMENTS[j++]}"
+
+if [ -z "$LAST_SNAP_ID" ]; then
+    LAST_SNAP_ID=0
+fi
 
 
 SYSTEM_DS_PATH=$(dirname ${SRC_PATH})
@@ -66,11 +76,13 @@ IMAGE_DS_PATH=$(dirname ${DISK_SRC})
 
 if [ "$CLONE" = "YES" ]; then
     DISK_PATH="${SYSTEM_DS_PATH}/disk.${DISK_ID}"
+    DISK_PATH_ORIG="${DISK_PATH}.orig"
 else
     DISK_PATH=$DISK_SRC
+    DISK_PATH_ORIG=$DISK_PATH
 fi
 
-SNAP_ID=$(( $SNAP_ID + 1 ))
+SNAP_ID=$(( $LAST_SNAP_ID + 1 ))
 
 SNAP_DIR="${DISK_PATH}.snap"
 SNAP_PATH="${SNAP_DIR}/${SNAP_ID}"
@@ -87,12 +99,21 @@ fi
 # Move save current snapshot and create a new one. The snapshot uses
 # absolute path name as the qemu-img has problems with relative backing
 # file paths and symlinks
-#mv "${CURRENT_PATH}" "${SNAP_PATH}"
-#qemu-img create -f qcow2 -b "${SNAP_PATH}" "${CURRENT_PATH}"
 
-virsh -c qemu:///system snapshot-create-as one-$VMID $SNAP_ID "snap $SNAP_ID" --disk-only --diskspec vda,file=$SNAP_PATH --atomic
+if [ "$STATE" = "3" ]; then
+    touch $SNAP_PATH
 
-ln -sf $SNAP_PATH $CURRENT_PATH
+
+    ls -la $(dirname $SNAP_PATH) 1>&2
+    ls -l $SNAP_PATH 1>&2
+
+    virsh -c qemu:///system snapshot-create-as one-$VMID $SNAP_ID "snap $SNAP_ID" --disk-only --diskspec $TARGET,file=$SNAP_PATH --atomic
+
+    ln -sf $SNAP_PATH $CURRENT_PATH
+else
+    mv "${CURRENT_PATH}" "${SNAP_PATH}"
+    qemu-img create -f qcow2 -b "${SNAP_PATH}" "${CURRENT_PATH}"
+fi
 
 # TODO: Check that the new snapshot can be created. Roll back in case
 # of error
@@ -110,6 +131,8 @@ if [ "$SNAP_ID" = "1" ]; then
 
         qemu-img rebase -u -b "\${REAL_BACKING_FILE}" "${SNAP_PATH}"
     fi
+
+    ln -sf "${DISK_PATH_ORIG}" "${SNAP_DIR}/0"
 fi
 EOT
 )
