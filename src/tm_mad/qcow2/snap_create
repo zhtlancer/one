@@ -56,14 +56,16 @@ done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/TARGET \
                     "/VM/SNAPSHOTS[DISK_ID=$DISK_ID]/SNAPSHOT[last()]/ID" \
                     /VM/HISTORY_RECORDS/HISTORY/VMMMAD \
-                    /VM/STATE)
+                    /VM/STATE \
+                    '%m%/VM/TEMPLATE/DISK/TARGET')
 
 DISK_SRC="${XPATH_ELEMENTS[j++]}"
 CLONE="${XPATH_ELEMENTS[j++]}"
 TARGET="${XPATH_ELEMENTS[j++]}"
 LAST_SNAP_ID="${XPATH_ELEMENTS[j++]}"
-LAST_SNAP_ID="${XPATH_ELEMENTS[j++]}"
+VMMAD="${XPATH_ELEMENTS[j++]}"
 STATE="${XPATH_ELEMENTS[j++]}"
+ALL_DISKS="${XPATH_ELEMENTS[j++]}"
 
 if [ -z "$LAST_SNAP_ID" ]; then
     LAST_SNAP_ID=0
@@ -89,6 +91,48 @@ SNAP_PATH="${SNAP_DIR}/${SNAP_ID}"
 SNAP_PATH_RELATIVE=$(basename ${SNAP_PATH})
 CURRENT_PATH=${DISK_PATH}
 
+DOC="
+<domainsnapshot>
+  <name>1</name>
+  <description>snap 1</description>
+  <disks>
+    <disk name='vda' snapshot='no'/>
+    <disk name='vdb'>
+      <source file='/home/jfontan/work/one/install-snaps/var//datastores/1/09eec196c67b38dea41048a628978600.snap/1'/>
+    </disk>
+  </disks>
+</domainsnapshot>
+"
+
+
+DOC="
+<domainsnapshot>
+  <name>${SNAP_ID}</name>
+  <description>snap ${SNAP_ID}</description>
+  <disks>"
+
+for disk in $ALL_DISKS; do
+    if [ "$disk" = "$TARGET" ]; then
+        DOC="$DOC
+    <disk name='$disk' snapshot='external'>
+      <source file='$SNAP_PATH'/>
+    </disk>"
+    else
+        DOC="$DOC
+    <disk name='$disk' snapshot='no'/>"
+    fi
+done
+
+DOC="$DOC
+  </disks>
+</domainsnapshot>"
+
+echo "$ALL_DISKS" 1>&2
+echo -e "$DOC" 1>&2
+
+#exit 1
+
+
 CMD=$(cat <<EOT
 set -ex
 
@@ -107,7 +151,11 @@ if [ "$STATE" = "3" ]; then
     ls -la $(dirname $SNAP_PATH) 1>&2
     ls -l $SNAP_PATH 1>&2
 
-    virsh -c qemu:///system snapshot-create-as one-$VMID $SNAP_ID "snap $SNAP_ID" --disk-only --diskspec $TARGET,file=$SNAP_PATH --atomic
+    FILENAME="/tmp/snapshot-\$(date +%s)"
+    echo -e "$DOC" > \$FILENAME
+
+    #virsh -c qemu:///system snapshot-create-as one-$VMID $SNAP_ID "snap $SNAP_ID" --disk-only --diskspec $TARGET,file=$SNAP_PATH --atomic
+    virsh -c qemu:///system snapshot-create one-$VMID --disk-only --atomic --xmlfile \$FILENAME
 
     ln -sf $SNAP_PATH $CURRENT_PATH
 else
