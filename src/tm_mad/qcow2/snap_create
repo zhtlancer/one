@@ -57,6 +57,7 @@ done < <(onevm show -x $VMID| $XPATH \
                     "/VM/SNAPSHOTS[DISK_ID=$DISK_ID]/SNAPSHOT[last()]/ID" \
                     /VM/HISTORY_RECORDS/HISTORY/VMMMAD \
                     /VM/STATE \
+                    /VM/LCM_STATE \
                     '%m%/VM/TEMPLATE/DISK/TARGET')
 
 DISK_SRC="${XPATH_ELEMENTS[j++]}"
@@ -65,6 +66,7 @@ TARGET="${XPATH_ELEMENTS[j++]}"
 LAST_SNAP_ID="${XPATH_ELEMENTS[j++]}"
 VMMAD="${XPATH_ELEMENTS[j++]}"
 STATE="${XPATH_ELEMENTS[j++]}"
+LCM_STATE="${XPATH_ELEMENTS[j++]}"
 ALL_DISKS="${XPATH_ELEMENTS[j++]}"
 
 if [ -z "$LAST_SNAP_ID" ]; then
@@ -88,21 +90,26 @@ SNAP_ID=$(( $LAST_SNAP_ID + 1 ))
 
 SNAP_DIR="${DISK_PATH}.snap"
 SNAP_PATH="${SNAP_DIR}/${SNAP_ID}"
+LAST_SNAP_PATH="${SNAP_DIR}/${LAST_SNAP_ID}"
 SNAP_PATH_RELATIVE=$(basename ${SNAP_PATH})
 CURRENT_PATH=${DISK_PATH}
 
-DOC="
-<domainsnapshot>
-  <name>1</name>
-  <description>snap 1</description>
-  <disks>
-    <disk name='vda' snapshot='no'/>
-    <disk name='vdb'>
-      <source file='/home/jfontan/work/one/install-snaps/var//datastores/1/09eec196c67b38dea41048a628978600.snap/1'/>
-    </disk>
-  </disks>
-</domainsnapshot>
-"
+# virsh snapshot-create by default creates snapshots for all the disks that
+# are not read only. To be able to make a snapshot in only one of the disks
+# an xml must be created describing all of the disks and setting the value
+# snapshot='no' to the disks that are not going to be snapshotted.
+
+# <domainsnapshot>
+#   <name>1</name>
+#   <description>snap 1</description>
+#   <disks>
+#     <disk name='vda' snapshot='no'/>
+#     <disk name='vdb'>
+#       <source file='/var/lib/one/datastores/1/09eec196c67b38dea41048a628978600.snap/1'/>
+#     </disk>
+#     <disk name='vdc' snapshot='no'/>
+#   </disks>
+# </domainsnapshot>
 
 
 DOC="
@@ -127,11 +134,6 @@ DOC="$DOC
   </disks>
 </domainsnapshot>"
 
-echo "$ALL_DISKS" 1>&2
-echo -e "$DOC" 1>&2
-
-#exit 1
-
 
 CMD=$(cat <<EOT
 set -ex
@@ -140,47 +142,39 @@ if [ ! -d "${SNAP_DIR}" ]; then
     mkdir "${SNAP_DIR}"
 fi
 
-# Move save current snapshot and create a new one. The snapshot uses
-# absolute path name as the qemu-img has problems with relative backing
-# file paths and symlinks
-
-if [ "$STATE" = "3" ]; then
+# 57 is DISK_SNAPSHOT. When the snapshot is done with the VM in running state
+if [ "$LCM_STATE" = "57" ]; then
+    # The file must be created beforehand or libvirt complains with
+    # "permission denied"
     touch $SNAP_PATH
 
-
-    ls -la $(dirname $SNAP_PATH) 1>&2
-    ls -l $SNAP_PATH 1>&2
-
+    # Temporary xml file
     FILENAME="/tmp/snapshot-\$(date +%s)"
     echo -e "$DOC" > \$FILENAME
 
-    #virsh -c qemu:///system snapshot-create-as one-$VMID $SNAP_ID "snap $SNAP_ID" --disk-only --diskspec $TARGET,file=$SNAP_PATH --atomic
-    virsh -c qemu:///system snapshot-create one-$VMID --disk-only --atomic --xmlfile \$FILENAME
+    virsh -c qemu:///system snapshot-create one-$VMID --disk-only --atomic \
+        --xmlfile \$FILENAME
 
     ln -sf $SNAP_PATH $CURRENT_PATH
+
+    rm \$FILENAME
 else
-    mv "${CURRENT_PATH}" "${SNAP_PATH}"
-    qemu-img create -f qcow2 -b "${SNAP_PATH}" "${CURRENT_PATH}"
-fi
-
-# TODO: Check that the new snapshot can be created. Roll back in case
-# of error
-
-# Convert backing file absolute path to relative path so it works outside
-# the system directory. Do not do this for snapshot one as:
-# * It could be a non backed file (persistent)
-# * The backing file is in images directory, is not relative
-if [ "$SNAP_ID" = "1" ]; then
-    BACKING_FILE=\$(qemu-img info ${SNAP_PATH} | grep '^backing file:' | \
-        cut -d: -f2 | sed 's/^ //')
-
-    if [ -n "\$BACKING_FILE" ]; then
-        REAL_BACKING_FILE="\${BACKING_FILE}.orig"
-
-        qemu-img rebase -u -b "\${REAL_BACKING_FILE}" "${SNAP_PATH}"
+    if [ "$SNAP_ID" = "1" ]; then
+        ORIG="$DISK_PATH_ORIG"
+    else
+        ORIG="$LAST_SNAP_PATH"
     fi
 
+    qemu-img create -f qcow2 -b "\${ORIG}" "${SNAP_PATH}"
+    ln -sf $SNAP_PATH $CURRENT_PATH
+fi
+
+# The first snapshot disk must change its backing file as by default
+if [ "$SNAP_ID" = "1" ]; then
     ln -sf "${DISK_PATH_ORIG}" "${SNAP_DIR}/0"
+
+    REAL_BACKING_FILE="${SNAP_DIR}/0"
+    qemu-img rebase -u -b "\${REAL_BACKING_FILE}" "${SNAP_PATH}"
 fi
 EOT
 )
