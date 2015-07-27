@@ -2319,7 +2319,14 @@ function generate_disk_tab_content(str_disk_tab_id){
               '<label for="FORMAT">'+tr("Format")+
                 '<span class="tip">'+tr("Filesystem type for the fs images")+'</span>'+
               '</label>'+
-              '<input type="text" id="FORMAT" name="format" />'+
+	      '<select id="FORMAT" name="format">'+
+	          '<option value="ext4">'+tr("ext4")+'</option>'+
+	          '<option value="ext3">'+tr("ext3")+'</option>'+
+	          '<option value="ext2">'+tr("ext2")+'</option>'+
+	          '<option value="ntfs">'+tr("ntfs")+'</option>'+
+	          '<option value="reiserfs">'+tr("reiserfs")+'</option>'+
+	          '<option value="jfs">'+tr("jfs")+'</option>'+
+	      '</select>'+
           '</div>'+
         '</div>'+
           '<br>'+

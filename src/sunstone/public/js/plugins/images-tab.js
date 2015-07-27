@@ -52,15 +52,15 @@ var create_image_tmpl ='<div class="row create_image_header">\
                 <div class="large-6 columns">\
                   <label for="img_type">'+tr("Type")+
                     '<span class="tip">'+tr("Type of the image.")+'<br/><br/>'
+                      + tr(" DATABLOCK images are a storage for data. They can be created from previous existing data, or as an empty drive.")
                       + tr(" OS images contain a working operative system.")+'<br/><br/>'
-                      + tr(" CDROM images are readonly data.")+'<br/><br/>'
-                      + tr(" DATABLOCK images are a storage for data. They can be created from previous existing data, or as an empty drive.")+
+                      + tr(" CDROM images are readonly data.")+'<br/><br/>'+
                     '</span>'+
                   '</label>\
                    <select name="img_type" id="img_type">\
+                        <option value="DATABLOCK">'+tr("DATABLOCK")+'</option>\
                         <option value="OS">'+tr("OS")+'</option>\
                         <option value="CDROM">'+tr("CDROM")+'</option>\
-                        <option value="DATABLOCK">'+tr("DATABLOCK")+'</option>\
                    </select>\
                 </div>\
                 <div class="large-6 columns">\
@@ -85,7 +85,7 @@ var create_image_tmpl ='<div class="row create_image_header">\
                   <div class="large-12 columns text-center">\
                        <input type="radio" name="src_path" id="path_image" value="path"><label for="path_image">'+ tr("Provide a path")+'</label> \
                        <input type="radio" name="src_path" id="upload_image" value="upload"> <label for="upload_image">'+tr("Upload")+'</label> \
-                       <input type="radio" name="src_path" id="datablock_img" value="datablock" disabled> <label for="datablock_img">'+tr("Empty datablock")+'</label> \
+                       <input type="radio" name="src_path" id="datablock_img" value="datablock"> <label for="datablock_img">'+tr("Empty datablock")+'</label> \
                   </div>\
                </div>\
                <br>\
@@ -117,7 +117,17 @@ var create_image_tmpl ='<div class="row create_image_header">\
                           + tr(" Formatted. The disk image is stored in a hypervisor specific format VMDK or Qcow2. Then we cannot really make a filesystem on the image, just create the device and let the guest OS format the disk. Use raw to not to format the new image. Values: raw, qcow2, vmdk_*.")+
                       '</span>'+
                     '</label>\
-                    <input type="text" name="img_fstype" id="img_fstype" />\
+                    <select name="img_type" id="img_type">\
+		        <option value="ext4">'+tr("ext4")+'</option>\
+		        <option value="ext3">'+tr("ext3")+'</option>\
+		        <option value="ext2">'+tr("ext2")+'</option>\
+		        <option value="ntfs">'+tr("ntfs")+'</option>\
+		        <option value="reiserfs">'+tr("reiserfs")+'</option>\
+		        <option value="jfs">'+tr("jfs")+'</option>\
+		        <option value="swap">'+tr("swap")+'</option>\
+		        <option value="qcow2">'+tr("qcow2")+'</option>\
+		        <option value="raw">'+tr("raw")+'</option>\
+                    </select>\
                   </div>\
                 </div>\
             </fieldset>\
