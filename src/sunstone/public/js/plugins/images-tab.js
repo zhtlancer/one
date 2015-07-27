@@ -58,9 +58,9 @@ var create_image_tmpl ='<div class="row create_image_header">\
                     '</span>'+
                   '</label>\
                    <select name="img_type" id="img_type">\
-                        <option value="DATABLOCK">'+tr("DATABLOCK")+'</option>\
                         <option value="OS">'+tr("OS")+'</option>\
                         <option value="CDROM">'+tr("CDROM")+'</option>\
+                        <option value="DATABLOCK">'+tr("DATABLOCK")+'</option>\
                    </select>\
                 </div>\
                 <div class="large-6 columns">\
@@ -117,7 +117,7 @@ var create_image_tmpl ='<div class="row create_image_header">\
                           + tr(" Formatted. The disk image is stored in a hypervisor specific format VMDK or Qcow2. Then we cannot really make a filesystem on the image, just create the device and let the guest OS format the disk. Use raw to not to format the new image. Values: raw, qcow2, vmdk_*.")+
                       '</span>'+
                     '</label>\
-                    <select name="img_type" id="img_type">\
+                    <select name="img_fstype" id="img_fstype">\
 		        <option value="ext4">'+tr("ext4")+'</option>\
 		        <option value="ext3">'+tr("ext3")+'</option>\
 		        <option value="ext2">'+tr("ext2")+'</option>\
